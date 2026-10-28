@@ -1,0 +1,67 @@
+create database prova;
+
+use prova;
+
+create table pai (
+IdPai int not null primary key auto_increment,
+nome varchar(150),
+CPF varchar(20) unique not null,
+Telefone varchar(20)
+);
+
+create table paciente(
+IdPaciente int not null primary key auto_increment,
+nome varchar(150),
+IdPai int,
+foreign key (IdPai)
+references pai(IdPai)
+);
+
+create table usuarios (
+IdUsuario int not null primary key auto_increment,
+nome varchar(150) not null, 
+login varchar(150) not null,
+senha varchar(50) not null
+);
+
+create table consulta (
+IdConsulta int not null primary key auto_increment,
+dataConsulta date not null,
+hora time not null,
+IdPaciente int,
+foreign key (IdPaciente)
+references paciente (IdPaciente)
+);
+
+insert into usuarios (nome, login, senha)
+values ("admin", "admin", "123"),
+("maria", "mary", "123"),
+("pedro", "pedro", "123");
+
+insert into pai(nome,CPF,Telefone)
+values
+("Marco", "123456789", "119999999"),
+("Antonio", "123456781", "119999999"),
+("Dalessio", "123456782", "119999999");
+
+insert into paciente(nome, IdPai)
+values
+("Pamela", 1),
+("Antonio", 3), 
+("Raphael", 2);
+
+insert into consulta(dataConsulta, hora, IdPaciente)
+values
+("2026-11-25", "14:00:00", 1),
+("2026-11-25", "16:00:00", 2),
+("2026-11-25", "18:00:00", 3);
+
+select * from usuarios;
+select * from pai
+select * from paciente
+select * from consulta
+
+USE prova;
+
+ALTER TABLE usuarios
+MODIFY COLUMN senha VARCHAR(255) NOT NULL;
