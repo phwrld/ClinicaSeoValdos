@@ -1,0 +1,514 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Clínica | Painel Administrativo</title>
+
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f3f6fb;
+            color: #17233d;
+        }
+
+        header {
+            background: #173b75;
+            color: white;
+            padding: 25px 40px;
+        }
+
+        header h1 { margin: 0 0 8px; }
+        header p { margin: 0; opacity: .8; }
+
+        main {
+            max-width: 1100px;
+            margin: 35px auto;
+            padding: 0 20px;
+        }
+
+        nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        button {
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 18px;
+            font-weight: bold;
+        }
+
+        nav button {
+            background: white;
+            color: #173b75;
+        }
+
+        nav button.ativo {
+            background: #173b75;
+            color: white;
+        }
+
+        .painel {
+            background: white;
+            border-radius: 14px;
+            padding: 25px;
+            box-shadow: 0 4px 20px #17233d12;
+        }
+
+        .topo {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .formulario {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 15px;
+            margin: 25px 0;
+        }
+
+        label {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        input, select {
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 12px;
+            width: 100%;
+            font: inherit;
+        }
+
+        input:focus, select:focus {
+            outline: 2px solid #93b7f2;
+        }
+
+        .acoes-form {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .principal { background: #173b75; color: white; }
+        .secundario { background: #e8edf5; color: #173b75; }
+        .perigo { background: #fee2e2; color: #b91c1c; }
+        .pequeno { padding: 8px 12px; }
+
+        .tabela-container { overflow-x: auto; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 14px 10px;
+            text-align: left;
+            border-bottom: 1px solid #e5eaf2;
+        }
+
+        th { color: #64748b; font-size: 13px; }
+
+        .botoes {
+            display: flex;
+            gap: 7px;
+        }
+
+        #mensagem { min-height: 22px; margin-top: 12px; }
+        .sucesso { color: #15803d; }
+        .erro { color: #b91c1c; }
+
+        @media (max-width: 600px) {
+            header { padding: 22px; }
+            .painel { padding: 16px; }
+        }
+    </style>
+</head>
+
+<body>
+<header>
+    <h1>Clínica</h1>
+    <p>Sistema de gerenciamento de pacientes e consultas</p>
+</header>
+
+<main>
+    <nav id="navegacao"></nav>
+
+    <section class="painel">
+        <div class="topo">
+            <div>
+                <h2 id="titulo"></h2>
+                <p>Cadastre, consulte, edite e exclua registros.</p>
+            </div>
+            <button class="secundario" onclick="carregar()">Atualizar lista</button>
+        </div>
+
+        <form id="formulario" class="formulario"></form>
+
+        <p id="mensagem" role="status"></p>
+
+        <div class="tabela-container">
+            <table>
+                <thead id="cabecalho"></thead>
+                <tbody id="registros"></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<script>
+    const configuracoes = {
+        pais: {
+            titulo: "Responsáveis",
+            id: "idPai",
+            campos: [
+                { nome: "nome", titulo: "Nome", tipo: "text" },
+                { nome: "CPF", titulo: "CPF", tipo: "text" },
+                { nome: "Telefone", titulo: "Telefone", tipo: "tel" }
+            ]
+        },
+        pacientes: {
+            titulo: "Pacientes",
+            id: "idPaciente",
+            campos: [
+                { nome: "nome", titulo: "Nome", tipo: "text" },
+                { nome: "idPai", titulo: "ID do responsável", tipo: "number" }
+            ]
+        },
+        consultas: {
+            titulo: "Consultas",
+            id: "idConsulta",
+            campos: [
+                { nome: "data", titulo: "Data", tipo: "date" },
+                { nome: "hora", titulo: "Hora", tipo: "time" },
+                { nome: "idPaciente", titulo: "ID do paciente", tipo: "number" }
+            ]
+        },
+        usuarios: {
+            titulo: "Usuários",
+            id: "idUsuario",
+            campos: [
+                { nome: "nome", titulo: "Nome", tipo: "text" },
+                { nome: "login", titulo: "Login", tipo: "text" },
+                { nome: "senha", titulo: "Senha", tipo: "password" }
+            ]
+        }
+    };
+
+    let entidade = "pacientes";
+    let idEdicao = null;
+    let registrosAtuais = [];
+
+    const formulario = document.getElementById("formulario");
+    const mensagem = document.getElementById("mensagem");
+
+    function avisar(texto, erro = false) {
+        mensagem.textContent = texto;
+        mensagem.className = erro ? "erro" : "sucesso";
+    }
+
+    function valorCampo(objeto, nome) {
+        if (!objeto) return "";
+
+        // Compatibilidade com os campos CPF e Telefone do Model.
+        return objeto[nome]
+            ?? objeto[nome.toLowerCase()]
+            ?? "";
+    }
+
+    async function requisicao(url, metodo = "GET", dados = null) {
+        const opcoes = { method: metodo };
+
+        if (dados !== null) {
+            opcoes.headers = { "Content-Type": "application/json" };
+            opcoes.body = JSON.stringify(dados);
+        }
+
+        const resposta = await fetch(url, opcoes);
+
+        if (!resposta.ok) {
+            throw new Error("Erro HTTP " + resposta.status);
+        }
+
+        if (resposta.status === 204) return null;
+
+        const texto = await resposta.text();
+        return texto ? JSON.parse(texto) : null;
+    }
+
+    function mudarPagina(novaEntidade) {
+        entidade = novaEntidade;
+        idEdicao = null;
+        avisar("");
+        montarInterface();
+        carregar();
+    }
+
+    function montarInterface() {
+        const config = configuracoes[entidade];
+
+        document.getElementById("titulo").textContent = config.titulo;
+
+        const navegacao = document.getElementById("navegacao");
+        navegacao.replaceChildren();
+
+        for (const [chave, item] of Object.entries(configuracoes)) {
+            const botao = document.createElement("button");
+
+            botao.textContent = item.titulo;
+            botao.className = chave === entidade ? "ativo" : "";
+            botao.onclick = () => mudarPagina(chave);
+
+            navegacao.appendChild(botao);
+        }
+
+        formulario.replaceChildren();
+
+        for (const campo of config.campos) {
+            const label = document.createElement("label");
+            label.textContent = campo.titulo;
+
+            const input = document.createElement("input");
+            input.name = campo.nome;
+            input.type = campo.tipo;
+            input.required = true;
+
+            if (campo.tipo === "number") {
+                input.min = "1";
+            }
+
+            // Senha na edição pode ficar vazia:
+            // o Service decide se mantém ou substitui.
+            if (entidade === "usuarios" && campo.nome === "senha") {
+                input.autocomplete = "new-password";
+            }
+
+            label.appendChild(input);
+            formulario.appendChild(label);
+        }
+
+        const acoes = document.createElement("div");
+        acoes.className = "acoes-form";
+
+        const salvar = document.createElement("button");
+        salvar.type = "submit";
+        salvar.className = "principal";
+        salvar.textContent = "Cadastrar / Salvar";
+
+        const cancelar = document.createElement("button");
+        cancelar.type = "button";
+        cancelar.className = "secundario";
+        cancelar.textContent = "Cancelar edição";
+        cancelar.onclick = cancelarEdicao;
+
+        acoes.append(salvar, cancelar);
+        formulario.appendChild(acoes);
+
+        const cabecalho = document.getElementById("cabecalho");
+        cabecalho.replaceChildren();
+
+        const linha = document.createElement("tr");
+
+        for (const titulo of [
+            "ID",
+            ...config.campos
+                .filter(campo => campo.nome !== "senha")
+                .map(campo => campo.titulo),
+            "Ações"
+        ]) {
+            const th = document.createElement("th");
+            th.textContent = titulo;
+            linha.appendChild(th);
+        }
+
+        cabecalho.appendChild(linha);
+    }
+
+    async function carregar() {
+        try {
+            const resultado = await requisicao("/" + entidade);
+            registrosAtuais = Array.isArray(resultado) ? resultado : [];
+            mostrarRegistros();
+        } catch (erro) {
+            registrosAtuais = [];
+            mostrarRegistros();
+            avisar("Não foi possível carregar: " + erro.message, true);
+        }
+    }
+
+    function mostrarRegistros() {
+        const config = configuracoes[entidade];
+        const corpo = document.getElementById("registros");
+
+        corpo.replaceChildren();
+
+        if (registrosAtuais.length === 0) {
+            const linha = document.createElement("tr");
+            const coluna = document.createElement("td");
+
+            coluna.colSpan = config.campos.length + 1;
+            coluna.textContent = "Nenhum registro encontrado.";
+
+            linha.appendChild(coluna);
+            corpo.appendChild(linha);
+            return;
+        }
+
+        for (const registro of registrosAtuais) {
+            const linha = document.createElement("tr");
+
+            const valores = [
+                registro[config.id],
+                ...config.campos
+                    .filter(campo => campo.nome !== "senha")
+                    .map(campo => valorCampo(registro, campo.nome))
+            ];
+
+            for (const valor of valores) {
+                const td = document.createElement("td");
+                td.textContent = valor ?? "";
+                linha.appendChild(td);
+            }
+
+            const acoes = document.createElement("td");
+            const botoes = document.createElement("div");
+            botoes.className = "botoes";
+
+            const editar = document.createElement("button");
+            editar.textContent = "Editar";
+            editar.className = "secundario pequeno";
+            editar.onclick = () => editarRegistro(registro);
+
+            const excluir = document.createElement("button");
+            excluir.textContent = "Excluir";
+            excluir.className = "perigo pequeno";
+            excluir.onclick = () => excluirRegistro(registro[config.id]);
+
+            botoes.append(editar, excluir);
+            acoes.appendChild(botoes);
+            linha.appendChild(acoes);
+
+            corpo.appendChild(linha);
+        }
+    }
+
+    function editarRegistro(registro) {
+        const config = configuracoes[entidade];
+        idEdicao = registro[config.id];
+
+        for (const campo of config.campos) {
+            const input = formulario.elements.namedItem(campo.nome);
+
+            if (campo.nome === "senha") {
+                input.value = "";
+                input.required = false;
+                continue;
+            }
+
+            let valor = valorCampo(registro, campo.nome);
+
+            if (campo.tipo === "time" && valor) {
+                valor = String(valor).substring(0, 5);
+            }
+
+            input.value = valor;
+        }
+
+        avisar("Editando registro #" + idEdicao);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function cancelarEdicao() {
+        idEdicao = null;
+        formulario.reset();
+
+        const senha = formulario.elements.namedItem("senha");
+        if (senha) senha.required = true;
+
+        avisar("");
+    }
+
+    formulario.addEventListener("submit", async (evento) => {
+        evento.preventDefault();
+
+        const config = configuracoes[entidade];
+        const dados = {};
+
+        for (const campo of config.campos) {
+            const input = formulario.elements.namedItem(campo.nome);
+            let valor = input.value.trim();
+
+            if (campo.nome === "senha" && idEdicao !== null && !valor) {
+                continue;
+            }
+
+            if (campo.tipo === "number") {
+                valor = Number(valor);
+            }
+
+            if (campo.tipo === "time" && valor.length === 5) {
+                valor += ":00";
+            }
+
+            dados[campo.nome] = valor;
+        }
+
+        const editando = idEdicao !== null;
+        const url = editando
+            ? "/" + entidade + "/" + idEdicao
+            : "/" + entidade;
+
+        try {
+            await requisicao(url, editando ? "PUT" : "POST", dados);
+
+            cancelarEdicao();
+            await carregar();
+
+            avisar(editando
+                ? "Registro atualizado com sucesso!"
+                : "Registro cadastrado com sucesso!");
+
+        } catch (erro) {
+            avisar("Falha ao salvar: " + erro.message, true);
+        }
+    });
+
+    async function excluirRegistro(id) {
+        if (!confirm("Deseja realmente excluir o registro #" + id + "?")) {
+            return;
+        }
+
+        try {
+            await requisicao("/" + entidade + "/" + id, "DELETE");
+
+            if (idEdicao === id) cancelarEdicao();
+
+            await carregar();
+            avisar("Registro excluído com sucesso!");
+
+        } catch (erro) {
+            avisar("Falha ao excluir: " + erro.message, true);
+        }
+    }
+
+    mudarPagina("pacientes");
+</script>
+</body>
+</html>
